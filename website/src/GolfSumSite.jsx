@@ -381,8 +381,8 @@ function HomePage({ nav }) {
         <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to bottom, rgba(11,15,19,0.55) 0%, rgba(11,15,19,0.75) 60%, rgba(11,15,19,0.95) 100%)" }} />
         <div className="fade-up" style={{ position: "relative", zIndex: 1, maxWidth: 700, margin: "0 auto", textAlign: "center", padding: "120px 24px 100px" }}>
           <div className="badge badge-green" style={{ marginBottom: 20 }}>Now in Beta · iOS & Android</div>
-          <h1 className="serif" style={{ fontSize: "clamp(40px, 6vw, 64px)", fontWeight: 400, lineHeight: 1.1, marginBottom: 20, letterSpacing: "-0.02em", textShadow: "0 2px 20px rgba(0,0,0,0.5)" }}>
-            Track. Analyze.<br /><span style={{ color: C.brand }}>Improve.</span>
+          <h1 className="serif" style={{ fontSize: "clamp(36px, 5.5vw, 64px)", fontWeight: 400, lineHeight: 1.1, marginBottom: 20, letterSpacing: "-0.02em", textShadow: "0 2px 20px rgba(0,0,0,0.5)" }}>
+            Track. Analyze. <span style={{ color: C.brand }}>Improve.</span>
           </h1>
           <p style={{ fontSize: 18, color: "#C8D0DC", maxWidth: 500, margin: "0 auto 36px", lineHeight: 1.7, textShadow: "0 1px 8px rgba(0,0,0,0.4)" }}>
             GolfSum turns your scorecards into coaching insights. No GPS sensors. No swing cameras. Just data-driven improvement from the rounds you already play.
