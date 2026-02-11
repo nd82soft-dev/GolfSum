@@ -118,6 +118,23 @@ const firestorePatch = async (path, token, updates) => {
   });
   return r.ok;
 };
+const firestoreGet = async (path, token) => {
+  const r = await fetch(`${FIRESTORE_BASE}/${path}`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
+  if (!r.ok) return null;
+  const d = await r.json();
+  return { id: d.name.split("/").pop(), ...fromFirestoreFields(d.fields || {}) };
+};
+const isAdminUser = async (uid, token) => {
+  if (!uid || !token) return false;
+  try {
+    const adminDoc = await firestoreGet(`admins/${uid}`, token);
+    return !!adminDoc;
+  } catch {
+    return false;
+  }
+};
 const listAllUsers = async (token) => {
   const r = await fetch(`${FIRESTORE_BASE}/users?pageSize=300`, {
     headers: token ? { Authorization: `Bearer ${token}` } : {},
@@ -137,7 +154,7 @@ const updateLastLogin = async (uid, token) => {
 };
 
 // ─── Config ───
-const ADMIN_EMAILS = ["support@golfsum.com"]; // ← Add your email
+// Admin access is determined by Firestore doc: admins/{uid}
 
 // ─── Theme ───
 const C = {
@@ -303,15 +320,26 @@ export default function GolfSumSite() {
   const [isAdmin, setIsAdmin] = useState(false);
 
   useEffect(() => {
-    try {
-      const s = sessionStorage?.getItem?.("gs_session");
-      if (s) { const p = JSON.parse(s); setUser(p); setIsAdmin(ADMIN_EMAILS.includes(p.email?.toLowerCase())); }
-    } catch {}
+    let alive = true;
+    (async () => {
+      try {
+        const s = sessionStorage?.getItem?.("gs_session");
+        if (!s) return;
+        const p = JSON.parse(s);
+        if (!alive) return;
+        setUser(p);
+        const admin = await isAdminUser(p.uid, p.idToken);
+        if (alive) setIsAdmin(admin);
+      } catch {}
+    })();
+    return () => { alive = false; };
   }, []);
 
-  const handleLogin = (u) => {
-    setUser(u); setIsAdmin(ADMIN_EMAILS.includes(u.email?.toLowerCase()));
+  const handleLogin = async (u) => {
+    setUser(u);
     try { sessionStorage?.setItem?.("gs_session", JSON.stringify(u)); } catch {}
+    const admin = await isAdminUser(u.uid, u.idToken);
+    setIsAdmin(admin);
     setPage("dashboard");
   };
   const handleLogout = () => {
