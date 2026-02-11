@@ -909,7 +909,9 @@ function AdminPage({ user }) {
 
   const filtered = searchTerm ? users.filter((u) => {
     const t = searchTerm.toLowerCase();
-    return (u.personalInfo?.name || "").toLowerCase().includes(t) || u.uid.toLowerCase().includes(t);
+    return (u.personalInfo?.name || "").toLowerCase().includes(t)
+      || (u.email || "").toLowerCase().includes(t)
+      || u.uid.toLowerCase().includes(t);
   }) : users;
 
   if (loading) return <section style={{ padding: "80px 24px", textAlign: "center" }}><div className="loading-bar" style={{ maxWidth: 200, margin: "40px auto" }} /></section>;
@@ -959,11 +961,20 @@ function AdminPage({ user }) {
 
       {tab === "users" && (
         <div className="fade-in">
-          <input className="input" placeholder="Search by name or UID..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} style={{ marginBottom: 16 }} />
+          <input className="input" placeholder="Search by name, email, or UID..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} style={{ marginBottom: 16 }} />
           <div className="card" style={{ padding: 0, overflow: "auto" }}>
-            <table className="table"><thead><tr><th>Name</th><th>UID</th><th>Mode</th><th>Rounds</th><th>Last Login</th><th>Home Course</th><th></th></tr></thead><tbody>
+            <table className="table"><thead><tr><th>Name</th><th>Email</th><th>UID</th><th>Mode</th><th>Rounds</th><th>Last Login</th><th>Home Course</th><th></th></tr></thead><tbody>
               {filtered.map((u, i) => (
-                <tr key={i}><td style={{ color: C.text, fontWeight: 500 }}>{u.personalInfo?.name || u.name || u.email || "—"}</td><td style={{ fontSize: 12, fontFamily: "monospace" }}>{u.uid.slice(0, 16)}...</td><td><span className={`badge ${u.scoringMode === "advanced" ? "badge-green" : "badge-blue"}`}>{u.scoringMode || "basic"}</span></td><td>{(allRounds[u.uid] || []).length}</td><td>{u.lastLoginAt ? fmtDate(u.lastLoginAt) : "—"}</td><td style={{ maxWidth: 160, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{u.coursePreferences?.homeCourseName || "—"}</td><td><button className="btn btn-ghost btn-sm" onClick={() => loadUserDetail(u)}>Inspect</button></td></tr>
+                <tr key={i}>
+                  <td style={{ color: C.text, fontWeight: 500 }}>{u.personalInfo?.name || u.name || u.email || "—"}</td>
+                  <td style={{ fontSize: 13, color: C.textMuted }}>{u.email || "—"}</td>
+                  <td style={{ fontSize: 12, fontFamily: "monospace" }}>{u.uid.slice(0, 16)}...</td>
+                  <td><span className={`badge ${u.scoringMode === "advanced" ? "badge-green" : "badge-blue"}`}>{u.scoringMode || "basic"}</span></td>
+                  <td>{(allRounds[u.uid] || []).length}</td>
+                  <td>{u.lastLoginAt ? fmtDate(u.lastLoginAt) : "—"}</td>
+                  <td style={{ maxWidth: 160, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{u.coursePreferences?.homeCourseName || "—"}</td>
+                  <td><button className="btn btn-ghost btn-sm" onClick={() => loadUserDetail(u)}>Inspect</button></td>
+                </tr>
               ))}
             </tbody></table>
           </div>
