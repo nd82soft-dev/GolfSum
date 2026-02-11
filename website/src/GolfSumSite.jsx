@@ -325,6 +325,52 @@ export default function GolfSumSite() {
   const [user, setUser] = useState(null);
   const [isAdmin, setIsAdmin] = useState(false);
 
+  const routeToPage = useCallback((path) => {
+    const p = (path || "/").toLowerCase();
+    if (p === "/" || p === "") return "home";
+    if (p.startsWith("/features")) return "features";
+    if (p.startsWith("/pricing")) return "pricing";
+    if (p.startsWith("/privacy")) return "privacy";
+    if (p.startsWith("/terms")) return "terms";
+    if (p.startsWith("/login")) return "login";
+    if (p.startsWith("/dashboard")) return "dashboard";
+    if (p.startsWith("/admin")) return "admin";
+    return "home";
+  }, []);
+
+  const pageToRoute = useCallback((nextPage) => {
+    switch (nextPage) {
+      case "features":
+        return "/features";
+      case "pricing":
+        return "/pricing";
+      case "privacy":
+        return "/privacy";
+      case "terms":
+        return "/terms";
+      case "login":
+        return "/login";
+      case "dashboard":
+        return "/dashboard";
+      case "admin":
+        return "/admin";
+      default:
+        return "/";
+    }
+  }, []);
+
+  const navigate = useCallback((nextPage, { replace } = {}) => {
+    const path = pageToRoute(nextPage);
+    try {
+      if (replace) {
+        window.history.replaceState({}, "", path);
+      } else {
+        window.history.pushState({}, "", path);
+      }
+    } catch {}
+    setPage(nextPage);
+  }, [pageToRoute]);
+
   useEffect(() => {
     let alive = true;
     (async () => {
@@ -341,24 +387,35 @@ export default function GolfSumSite() {
     return () => { alive = false; };
   }, []);
 
+  useEffect(() => {
+    const applyRoute = () => {
+      const next = routeToPage(window.location?.pathname);
+      setPage(next);
+    };
+    applyRoute();
+    const onPop = () => applyRoute();
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
+  }, [routeToPage]);
+
   const handleLogin = async (u) => {
     setUser(u);
     try { sessionStorage?.setItem?.("gs_session", JSON.stringify(u)); } catch {}
     const admin = await isAdminUser(u.uid, u.idToken);
     setIsAdmin(admin);
-    setPage("dashboard");
+    navigate("dashboard");
   };
   const handleLogout = () => {
     setUser(null); setIsAdmin(false);
     try { sessionStorage?.removeItem?.("gs_session"); } catch {}
-    setPage("home");
+    navigate("home");
   };
 
   return (
     <div style={{ minHeight: "100vh" }}>
       <style>{css}</style>
-      <Nav page={page} nav={setPage} user={user} isAdmin={isAdmin} onLogout={handleLogout} />
-      {page === "home" && <HomePage nav={setPage} />}
+      <Nav page={page} nav={navigate} user={user} isAdmin={isAdmin} onLogout={handleLogout} />
+      {page === "home" && <HomePage nav={navigate} />}
       {page === "features" && <FeaturesPage />}
       {page === "pricing" && <PricingPage />}
       {page === "privacy" && <PrivacyPage />}
@@ -366,7 +423,7 @@ export default function GolfSumSite() {
       {page === "login" && <LoginPage onLogin={handleLogin} />}
       {page === "dashboard" && user && <DashboardPage user={user} />}
       {page === "admin" && user && isAdmin && <AdminPage user={user} />}
-      <Footer nav={setPage} />
+      <Footer nav={navigate} />
     </div>
   );
 }
