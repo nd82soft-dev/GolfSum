@@ -434,8 +434,8 @@ function Nav({ page, nav, user, isAdmin, onLogout }) {
     <nav style={{ position: "sticky", top: 0, zIndex: 100, background: "rgba(11,15,19,0.85)", backdropFilter: "blur(20px)", borderBottom: `1px solid ${C.border}` }}>
       <div style={{ maxWidth: 1200, margin: "0 auto", padding: "0 24px", display: "flex", alignItems: "center", justifyContent: "space-between", height: 64 }}>
         <button onClick={() => nav("home")} style={{ background: "none", border: "none", cursor: "pointer", display: "flex", alignItems: "center", gap: 10 }}>
-          <div style={{ padding: "6px 10px", borderRadius: 10, background: "rgba(8,12,16,0.85)", border: `1px solid ${C.border}` }}>
-            <img src="/images/golfsum-logo.png" alt="GolfSum" style={{ height: 30, width: "auto", display: "block" }} />
+          <div style={{ padding: "8px 12px", borderRadius: 10, background: "rgba(8,12,16,0.85)", border: `1px solid ${C.border}` }}>
+            <img src="/images/golfsum-logo.png" alt="GolfSum" style={{ height: 42, width: "auto", display: "block" }} />
           </div>
         </button>
         <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
@@ -1143,8 +1143,10 @@ function Footer({ nav }) {
     <footer style={{ borderTop: `1px solid ${C.border}`, padding: "40px 24px", marginTop: 40 }}>
       <div style={{ maxWidth: 1100, margin: "0 auto", display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: 24 }}>
         <div>
-          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
-            <div style={{ width: 24, height: 24, borderRadius: 6, background: C.brand, display: "flex", alignItems: "center", justifyContent: "center" }}><Icon name="flag" size={12} color="#fff" /></div>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
+            <div style={{ padding: "6px 10px", borderRadius: 10, background: "rgba(8,12,16,0.85)", border: `1px solid ${C.border}` }}>
+              <img src="/images/golfsum-logo.png" alt="GolfSum" style={{ height: 28, width: "auto", display: "block" }} />
+            </div>
             <span style={{ fontWeight: 700, fontSize: 15 }}>GolfSum</span>
           </div>
           <p style={{ fontSize: 13, color: C.textDim }}>Track · Analyze · Improve</p>
