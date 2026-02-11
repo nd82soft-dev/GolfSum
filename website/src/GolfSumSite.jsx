@@ -572,10 +572,11 @@ function PricingPage() {
           </div>
         </div>
         {/* Monthly */}
-        <div className="card fade-up stagger-2" style={{ padding: 32 }}>
+        <div className="card fade-up stagger-2" style={{ padding: 32, display: "flex", flexDirection: "column" }}>
           <div style={{ fontSize: 13, fontWeight: 600, color: C.brand, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8 }}>Premium Monthly</div>
           <div style={{ fontSize: 40, fontWeight: 700, marginBottom: 4 }}>$5.99<span style={{ fontSize: 16, fontWeight: 400, color: C.textMuted }}>/mo</span></div>
-          <div style={{ fontSize: 14, color: C.textDim, marginBottom: 24 }}>Cancel anytime</div>
+          <div style={{ fontSize: 14, color: C.textDim, marginBottom: 4 }}>Cancel anytime</div>
+          <div style={{ fontSize: 14, color: C.textDim, marginBottom: 24 }}>3 free premium rounds</div>
           <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 28 }}>
             {premiumFeatureList.map((f, i) => (
               <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 14, color: i === 0 ? C.text : C.textMuted, fontWeight: i === 0 ? 600 : 400 }}>
@@ -583,11 +584,11 @@ function PricingPage() {
               </div>
             ))}
           </div>
-          <button className="btn btn-secondary" style={{ width: "100%", justifyContent: "center" }}>Subscribe Monthly</button>
+          <button className="btn btn-secondary" style={{ width: "100%", justifyContent: "center", marginTop: "auto" }}>Subscribe Monthly</button>
         </div>
         {/* Annual */}
-        <div className="card fade-up stagger-3" style={{ padding: 32, borderColor: C.brand, position: "relative", background: `linear-gradient(135deg, ${C.bgCard}, rgba(16,185,129,0.04))` }}>
-          <div className="badge badge-green" style={{ position: "absolute", top: 8, right: 12 }}>Save 31%</div>
+        <div className="card fade-up stagger-3" style={{ padding: 32, borderColor: C.brand, position: "relative", background: `linear-gradient(135deg, ${C.bgCard}, rgba(16,185,129,0.04))`, display: "flex", flexDirection: "column" }}>
+          <div className="badge badge-green" style={{ position: "absolute", top: 8, right: 12 }}>Save 30%</div>
           <div style={{ fontSize: 13, fontWeight: 600, color: C.brand, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8 }}>Premium Annual</div>
           <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginBottom: 4 }}>
             <span style={{ fontSize: 40, fontWeight: 700 }}>$49.99</span>
@@ -605,7 +606,7 @@ function PricingPage() {
               </div>
             ))}
           </div>
-          <button className="btn btn-primary" style={{ width: "100%", justifyContent: "center" }}>Start Free Rounds</button>
+          <button className="btn btn-primary" style={{ width: "100%", justifyContent: "center", marginTop: "auto" }}>Start Free Rounds</button>
         </div>
       </div>
     </section>
