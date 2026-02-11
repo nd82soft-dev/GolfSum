@@ -200,6 +200,12 @@ const daysSince = (d) => {
   const dt = typeof d === "string" ? new Date(d) : d;
   return Math.floor((Date.now() - dt.getTime()) / 86400000);
 };
+const getUserEmail = (u) => u.email || u.profile?.email || "—";
+const getUserName = (u) => u.personalInfo?.name || u.profile?.personalInfo?.name || u.name || u.email || "—";
+const getUserScoringMode = (u) => u.scoringMode || u.profile?.scoringMode || "basic";
+const getUserHomeCourse = (u) => u.coursePreferences?.homeCourseName || u.profile?.coursePreferences?.homeCourseName || "—";
+const getUserLastLoginAt = (u) => u.lastLoginAt || u.profile?.lastLoginAt;
+const getUserLastLoginDevice = (u) => u.lastLoginDevice || u.profile?.lastLoginDevice || null;
 
 // ─── Photo gallery data ───
 const GALLERY = [
@@ -904,6 +910,7 @@ function AdminPage({ user }) {
   const totalRounds = Object.values(allRounds).reduce((s, r) => s + r.length, 0);
   const activeUsers = Object.entries(allRounds).filter(([, r]) => r.length > 0).length;
   const recentRounds = Object.values(allRounds).flat().filter((r) => daysSince(r.date) <= 7).length;
+  const recentLogins = users.filter((u) => daysSince(getUserLastLoginAt(u)) <= 7).length;
   const ocrLastAt = ocrStats.last?.lastVerifiedAt ? new Date(ocrStats.last.lastVerifiedAt).toISOString() : (ocrStats.last?.updatedAt || null);
   const ocrLastName = ocrStats.last?.name || "—";
 
@@ -940,6 +947,7 @@ function AdminPage({ user }) {
             <div className="stat-box"><div className="stat-value">{activeUsers}</div><div className="stat-label">Active (1+ round)</div></div>
             <div className="stat-box"><div className="stat-value">{totalRounds}</div><div className="stat-label">Total Rounds</div></div>
             <div className="stat-box"><div className="stat-value">{recentRounds}</div><div className="stat-label">Rounds (7 days)</div></div>
+            <div className="stat-box"><div className="stat-value">{recentLogins}</div><div className="stat-label">Logins (7 days)</div></div>
             <div className="stat-box"><div className="stat-value">{users.length ? (totalRounds / users.length).toFixed(1) : "0"}</div><div className="stat-label">Avg Rounds/User</div></div>
             <div className="stat-box"><div className="stat-value">{users.length ? Math.round((activeUsers / users.length) * 100) : 0}%</div><div className="stat-label">Activation Rate</div></div>
             <div className="stat-box"><div className="stat-value">{ocrStats.total != null ? ocrStats.total : "—"}</div><div className="stat-label">OCR Uploads</div></div>
@@ -947,12 +955,23 @@ function AdminPage({ user }) {
           </div>
           <div className="card" style={{ padding: 0, overflow: "hidden" }}>
             <div style={{ padding: "16px 20px", borderBottom: `1px solid ${C.border}` }}><h3 style={{ fontSize: 15, fontWeight: 600 }}>Most Active Users</h3></div>
-            <table className="table"><thead><tr><th>User</th><th>UID</th><th>Rounds</th><th>Best</th><th>Last Round</th><th>Last Login</th><th></th></tr></thead><tbody>
+            <table className="table"><thead><tr><th>User</th><th>Email</th><th>UID</th><th>Rounds</th><th>Best</th><th>Last Round</th><th>Last Login</th><th>Device</th><th></th></tr></thead><tbody>
               {users.sort((a, b) => (allRounds[b.uid]?.length || 0) - (allRounds[a.uid]?.length || 0)).slice(0, 15).map((u, i) => {
                 const r = allRounds[u.uid] || [];
                 const best = r.length ? Math.min(...r.map((x) => x.score).filter(Boolean)) : null;
                 const last = r.length ? r.sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0))[0] : null;
-                return (<tr key={i}><td style={{ color: C.text, fontWeight: 500 }}>{u.personalInfo?.name || u.name || u.email || "—"}</td><td style={{ fontSize: 12, fontFamily: "monospace" }}>{u.uid.slice(0, 12)}...</td><td style={{ fontWeight: 600, color: C.text }}>{r.length}</td><td>{best || "—"}</td><td>{last ? fmtDate(last.date) : "—"}</td><td>{u.lastLoginAt ? fmtDate(u.lastLoginAt) : "—"}</td><td><button className="btn btn-ghost btn-sm" onClick={() => loadUserDetail(u)}>View</button></td></tr>);
+                const device = getUserLastLoginDevice(u);
+                return (<tr key={i}>
+                  <td style={{ color: C.text, fontWeight: 500 }}>{getUserName(u)}</td>
+                  <td style={{ fontSize: 13, color: C.textMuted }}>{getUserEmail(u)}</td>
+                  <td style={{ fontSize: 12, fontFamily: "monospace" }}>{u.uid.slice(0, 12)}...</td>
+                  <td style={{ fontWeight: 600, color: C.text }}>{r.length}</td>
+                  <td>{best || "—"}</td>
+                  <td>{last ? fmtDate(last.date) : "—"}</td>
+                  <td>{getUserLastLoginAt(u) ? fmtDate(getUserLastLoginAt(u)) : "—"}</td>
+                  <td style={{ maxWidth: 160, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{device?.platform || device?.userAgent || "—"}</td>
+                  <td><button className="btn btn-ghost btn-sm" onClick={() => loadUserDetail(u)}>View</button></td>
+                </tr>);
               })}
             </tbody></table>
           </div>
@@ -963,16 +982,17 @@ function AdminPage({ user }) {
         <div className="fade-in">
           <input className="input" placeholder="Search by name, email, or UID..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} style={{ marginBottom: 16 }} />
           <div className="card" style={{ padding: 0, overflow: "auto" }}>
-            <table className="table"><thead><tr><th>Name</th><th>Email</th><th>UID</th><th>Mode</th><th>Rounds</th><th>Last Login</th><th>Home Course</th><th></th></tr></thead><tbody>
+            <table className="table"><thead><tr><th>Name</th><th>Email</th><th>UID</th><th>Mode</th><th>Rounds</th><th>Last Login</th><th>Device</th><th>Home Course</th><th></th></tr></thead><tbody>
               {filtered.map((u, i) => (
                 <tr key={i}>
-                  <td style={{ color: C.text, fontWeight: 500 }}>{u.personalInfo?.name || u.name || u.email || "—"}</td>
-                  <td style={{ fontSize: 13, color: C.textMuted }}>{u.email || "—"}</td>
+                  <td style={{ color: C.text, fontWeight: 500 }}>{getUserName(u)}</td>
+                  <td style={{ fontSize: 13, color: C.textMuted }}>{getUserEmail(u)}</td>
                   <td style={{ fontSize: 12, fontFamily: "monospace" }}>{u.uid.slice(0, 16)}...</td>
-                  <td><span className={`badge ${u.scoringMode === "advanced" ? "badge-green" : "badge-blue"}`}>{u.scoringMode || "basic"}</span></td>
+                  <td><span className={`badge ${getUserScoringMode(u) === "advanced" ? "badge-green" : "badge-blue"}`}>{getUserScoringMode(u)}</span></td>
                   <td>{(allRounds[u.uid] || []).length}</td>
-                  <td>{u.lastLoginAt ? fmtDate(u.lastLoginAt) : "—"}</td>
-                  <td style={{ maxWidth: 160, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{u.coursePreferences?.homeCourseName || "—"}</td>
+                  <td>{getUserLastLoginAt(u) ? fmtDate(getUserLastLoginAt(u)) : "—"}</td>
+                  <td style={{ maxWidth: 160, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{getUserLastLoginDevice(u)?.platform || getUserLastLoginDevice(u)?.userAgent || "—"}</td>
+                  <td style={{ maxWidth: 160, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{getUserHomeCourse(u)}</td>
                   <td><button className="btn btn-ghost btn-sm" onClick={() => loadUserDetail(u)}>Inspect</button></td>
                 </tr>
               ))}
@@ -988,21 +1008,22 @@ function AdminPage({ user }) {
               <div className="card" style={{ marginBottom: 20 }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 16 }}>
                   <div>
-                    <h3 style={{ fontSize: 18, fontWeight: 700, marginBottom: 4 }}>{selectedUser.personalInfo?.name || selectedUser.name || selectedUser.email || "Unnamed User"}</h3>
+                    <h3 style={{ fontSize: 18, fontWeight: 700, marginBottom: 4 }}>{getUserName(selectedUser) || "Unnamed User"}</h3>
                     <p style={{ fontSize: 13, color: C.textMuted, fontFamily: "monospace" }}>UID: {selectedUser.uid}</p>
                   </div>
                   <div style={{ display: "flex", gap: 8 }}>
-                    <span className={`badge ${selectedUser.scoringMode === "advanced" ? "badge-green" : "badge-blue"}`}>{selectedUser.scoringMode || "basic"} mode</span>
+                    <span className={`badge ${getUserScoringMode(selectedUser) === "advanced" ? "badge-green" : "badge-blue"}`}>{getUserScoringMode(selectedUser)} mode</span>
                     <span className="badge badge-amber">{selectedRounds.length} rounds</span>
                   </div>
                 </div>
                 <div style={{ marginTop: 16, display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 12 }}>
                   {[
-                    ["Home Course", selectedUser.coursePreferences?.homeCourseName],
-                    ["Handicap", selectedUser.coursePreferences?.typicalHandicap],
-                    ["Favorite Tee", selectedUser.coursePreferences?.favoriteTee],
-                    ["Last Login", selectedUser.lastLoginAt ? fmtDate(selectedUser.lastLoginAt) : "—"],
-                    ["Device", selectedUser.lastLoginDevice?.platform || selectedUser.lastLoginDevice?.userAgent || "—"],
+                    ["Email", getUserEmail(selectedUser)],
+                    ["Home Course", getUserHomeCourse(selectedUser)],
+                    ["Handicap", selectedUser.coursePreferences?.typicalHandicap || selectedUser.profile?.coursePreferences?.typicalHandicap],
+                    ["Favorite Tee", selectedUser.coursePreferences?.favoriteTee || selectedUser.profile?.coursePreferences?.favoriteTee],
+                    ["Last Login", getUserLastLoginAt(selectedUser) ? fmtDate(getUserLastLoginAt(selectedUser)) : "—"],
+                    ["Device", getUserLastLoginDevice(selectedUser)?.platform || getUserLastLoginDevice(selectedUser)?.userAgent || "—"],
                     ["Last Error", selectedUser.lastError?.message || "—"],
                   ].map(([l, v], i) => (
                     <div key={i}><span style={{ fontSize: 11, color: C.textDim, textTransform: "uppercase" }}>{l}</span><p style={{ fontSize: 14, color: C.textMuted }}>{v || "—"}</p></div>
