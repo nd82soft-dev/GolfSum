@@ -1,0 +1,32 @@
+[
+  {
+    "id": "case-ambiguous-score",
+    "image": "case-ambiguous-score.jpg",
+    "expected": "case-ambiguous-score.expected.json",
+    "notes": "Ambiguous score row (D vs P). Expect score_missing flag and no inferred scores."
+  },
+  {
+    "id": "case-missing-rating",
+    "image": "case-missing-rating.jpg",
+    "expected": "case-missing-rating.expected.json",
+    "notes": "Missing course rating/slope should not mark WHS eligible."
+  },
+  {
+    "id": "case-par3-fir",
+    "image": "case-par3-fir.jpg",
+    "expected": "case-par3-fir.expected.json",
+    "notes": "FIR marks on par 3 must be ignored (fir = null)."
+  },
+  {
+    "id": "case-combo-tees",
+    "image": "case-combo-tees.jpg",
+    "expected": "case-combo-tees.expected.json",
+    "notes": "Combo tees with mixed ratings should map to correct tee names."
+  },
+  {
+    "id": "case-nine-hole",
+    "image": "case-nine-hole.jpg",
+    "expected": "case-nine-hole.expected.json",
+    "notes": "Nine-hole card should parse 9 holes and totals accordingly."
+  }
+]
