@@ -1108,7 +1108,9 @@ function AdminPage({ user }) {
   const mergedReportedIssues = (() => {
     const byKey = new Map();
     const pushIssue = (issue, source) => {
-      const key = `${issue?.uid || "unknown"}|${issue?.createdAt || ""}|${issue?.message || ""}`;
+      const key = issue?.id
+        ? `id:${issue.id}`
+        : `${issue?.uid || "unknown"}|${issue?.createdAt || ""}|${issue?.message || ""}|${source}`;
       if (!byKey.has(key)) byKey.set(key, { ...issue, __source: source });
     };
     (reportedIssues || []).forEach((issue) => pushIssue(issue, "collection"));
