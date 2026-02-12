@@ -118,6 +118,16 @@ const firestorePatch = async (path, token, updates) => {
   });
   return r.ok;
 };
+const firestorePatchWithFieldPaths = async (path, token, updates, fieldPaths = []) => {
+  const params = (fieldPaths || []).map((k) => `updateMask.fieldPaths=${encodeURIComponent(k)}`).join("&");
+  const url = `${FIRESTORE_BASE}/${path}${params ? `?${params}` : ""}`;
+  const r = await fetch(url, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+    body: JSON.stringify({ fields: toFirestoreFields(updates) }),
+  });
+  return r.ok;
+};
 const firestoreGet = async (path, token) => {
   const r = await fetch(`${FIRESTORE_BASE}/${path}`, {
     headers: token ? { Authorization: `Bearer ${token}` } : {},
@@ -936,6 +946,10 @@ function AdminPage({ user }) {
   const [tab, setTab] = useState("overview");
   const [ocrStats, setOcrStats] = useState({ total: null, last: null });
   const [selectedErrorUser, setSelectedErrorUser] = useState(null);
+  const [reportedIssues, setReportedIssues] = useState([]);
+  const [selectedReportedIssue, setSelectedReportedIssue] = useState(null);
+  const [homeCourseDraft, setHomeCourseDraft] = useState("");
+  const [savingHomeCourse, setSavingHomeCourse] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -955,6 +969,8 @@ function AdminPage({ user }) {
           firestoreQuery({ ...ocrBase, orderBy: [{ field: { fieldPath: "lastVerifiedAt" }, direction: "DESCENDING" }], limit: 1 }, user.idToken),
         ]);
         setOcrStats({ total: totalOcr, last: lastOcrArr?.[0] || null });
+        const issues = await firestoreList("reportedIssues", user.idToken, 200);
+        setReportedIssues(issues);
       } catch (e) { console.error(e); }
       setLoading(false);
     })();
@@ -962,8 +978,35 @@ function AdminPage({ user }) {
 
   const loadUserDetail = async (usr) => {
     setSelectedUser(usr); setLoadingUser(true); setTab("user");
+    setHomeCourseDraft(getUserHomeCourse(usr) === "—" ? "" : getUserHomeCourse(usr));
     try { const r = allRounds[usr.uid] || await getUserRounds(usr.uid, user.idToken); setSelectedRounds(r.sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0))); } catch { setSelectedRounds([]); }
     setLoadingUser(false);
+  };
+
+  const handleSaveHomeCourse = async () => {
+    if (!selectedUser) return;
+    setSavingHomeCourse(true);
+    try {
+      const ok = await firestorePatchWithFieldPaths(
+        `users/${selectedUser.uid}`,
+        user.idToken,
+        { coursePreferences: { homeCourseName: homeCourseDraft.trim() } },
+        ["coursePreferences.homeCourseName"]
+      );
+      if (ok) {
+        const updated = {
+          ...selectedUser,
+          coursePreferences: {
+            ...(selectedUser.coursePreferences || {}),
+            homeCourseName: homeCourseDraft.trim(),
+          },
+        };
+        setSelectedUser(updated);
+        setUsers((prev) => prev.map((u) => u.uid === updated.uid ? updated : u));
+      }
+    } finally {
+      setSavingHomeCourse(false);
+    }
   };
 
   const totalRounds = Object.values(allRounds).reduce((s, r) => s + r.length, 0);
@@ -973,6 +1016,7 @@ function AdminPage({ user }) {
   const ocrLastAt = ocrStats.last?.lastVerifiedAt ? new Date(ocrStats.last.lastVerifiedAt).toISOString() : (ocrStats.last?.updatedAt || null);
   const ocrLastName = ocrStats.last?.name || "—";
   const errorUsers = users.filter((u) => u.lastError?.message || u.lastError?.stack);
+  const userLookup = users.reduce((acc, u) => { acc[u.uid] = u; return acc; }, {});
 
   const filtered = searchTerm ? users.filter((u) => {
     const t = searchTerm.toLowerCase();
@@ -993,9 +1037,13 @@ function AdminPage({ user }) {
       </div>
 
       <div style={{ display: "flex", gap: 4, marginBottom: 20, borderBottom: `1px solid ${C.border}` }}>
-        {["overview", "users", ...(selectedUser ? ["user"] : [])].map((t) => (
+        {["overview", "users", "reported", ...(selectedUser ? ["user"] : [])].map((t) => (
           <button key={t} onClick={() => setTab(t)} style={{ background: "none", border: "none", padding: "10px 16px", cursor: "pointer", fontFamily: "inherit", fontSize: 14, fontWeight: tab === t ? 600 : 400, color: tab === t ? C.text : C.textMuted, borderBottom: tab === t ? `2px solid ${C.brand}` : "2px solid transparent", textTransform: "capitalize" }}>
-            {t === "user" && selectedUser ? `User: ${selectedUser.personalInfo?.name || selectedUser.uid.slice(0, 8)}` : t}
+            {t === "user" && selectedUser
+              ? `User: ${selectedUser.personalInfo?.name || selectedUser.uid.slice(0, 8)}`
+              : t === "reported"
+                ? "Reported Issues"
+                : t}
           </button>
         ))}
       </div>
@@ -1012,6 +1060,7 @@ function AdminPage({ user }) {
             <div className="stat-box"><div className="stat-value">{users.length ? Math.round((activeUsers / users.length) * 100) : 0}%</div><div className="stat-label">Activation Rate</div></div>
             <div className="stat-box"><div className="stat-value">{ocrStats.total != null ? ocrStats.total : "—"}</div><div className="stat-label">OCR Uploads</div></div>
             <div className="stat-box"><div className="stat-value" style={{ fontSize: 13 }}>{ocrLastAt ? fmtDate(ocrLastAt) : "—"}</div><div className="stat-label">Last OCR: {ocrLastName}</div></div>
+            <div className="stat-box"><div className="stat-value">{reportedIssues.length}</div><div className="stat-label">Reported Issues</div></div>
           </div>
           <div className="card" style={{ padding: 0, overflow: "hidden", marginBottom: 20 }}>
             <div style={{ padding: "16px 20px", borderBottom: `1px solid ${C.border}` }}><h3 style={{ fontSize: 15, fontWeight: 600 }}>Recent Errors</h3></div>
@@ -1099,6 +1148,86 @@ function AdminPage({ user }) {
         </div>
       )}
 
+      {tab === "reported" && (
+        <div className="fade-in">
+          <div className="card" style={{ padding: 0, overflow: "auto" }}>
+            {reportedIssues.length === 0 ? (
+              <div style={{ padding: 20, fontSize: 13, color: C.textMuted }}>No reported issues yet.</div>
+            ) : (
+              <table className="table"><thead><tr><th>Date</th><th>User</th><th>Email</th><th>Message</th><th>Last Login</th><th>Recent Error</th><th></th></tr></thead><tbody>
+                {reportedIssues
+                  .slice()
+                  .sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0))
+                  .map((issue, i) => {
+                    const u = userLookup[issue.uid] || {};
+                    const lastLogin = issue.lastLoginAt || getUserLastLoginAt(u);
+                    const recentError = issue.lastError?.message || u.lastError?.message || "—";
+                    return (
+                      <tr key={i}>
+                        <td>{issue.createdAt ? fmtDate(issue.createdAt) : "—"}</td>
+                        <td style={{ color: C.text, fontWeight: 500 }}>{getUserName(u) || issue.uid?.slice?.(0, 8) || "—"}</td>
+                        <td style={{ fontSize: 13, color: C.textMuted }}>{issue.email || getUserEmail(u) || "—"}</td>
+                        <td style={{ maxWidth: 260, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{issue.message || "—"}</td>
+                        <td>{lastLogin ? fmtDate(lastLogin) : "—"}</td>
+                        <td style={{ maxWidth: 260, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{recentError}</td>
+                        <td><button className="btn btn-ghost btn-sm" onClick={() => setSelectedReportedIssue(issue)}>View</button></td>
+                      </tr>
+                    );
+                  })}
+              </tbody></table>
+            )}
+          </div>
+          {selectedReportedIssue && (
+            <div className="card" style={{ marginTop: 20 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, marginBottom: 10 }}>
+                <h3 style={{ fontSize: 15, fontWeight: 600 }}>Full Report</h3>
+                <button className="btn btn-ghost btn-sm" onClick={() => setSelectedReportedIssue(null)}>Close</button>
+              </div>
+              <div style={{ fontSize: 12, color: C.textDim, marginBottom: 10 }}>
+                {selectedReportedIssue.createdAt ? fmtDate(selectedReportedIssue.createdAt) : "—"}
+              </div>
+              <div style={{ fontSize: 13, color: C.textMuted, marginBottom: 10 }}>
+                <span style={{ color: C.text, fontWeight: 600 }}>{selectedReportedIssue.email || "Unknown user"}</span>
+                {" · "}
+                {selectedReportedIssue.uid || "—"}
+              </div>
+              <div style={{ fontSize: 14, color: C.text, marginBottom: 12 }}>{selectedReportedIssue.message || "—"}</div>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 10, marginBottom: 12 }}>
+                {[
+                  ["Platform", selectedReportedIssue.platform],
+                  ["Device", selectedReportedIssue.deviceModel],
+                  ["App Version", selectedReportedIssue.appVersion],
+                  ["Build", selectedReportedIssue.buildNumber],
+                  ["Last Login", selectedReportedIssue.lastLoginAt ? fmtDate(selectedReportedIssue.lastLoginAt) : "—"],
+                ].map(([label, value], idx) => (
+                  <div key={idx}>
+                    <div style={{ fontSize: 11, color: C.textDim, textTransform: "uppercase" }}>{label}</div>
+                    <div style={{ fontSize: 13, color: C.textMuted }}>{value || "—"}</div>
+                  </div>
+                ))}
+              </div>
+              {selectedReportedIssue.lastError?.message && (
+                <div style={{ marginTop: 10 }}>
+                  <div style={{ fontSize: 11, color: C.textDim, textTransform: "uppercase", marginBottom: 6 }}>Recent Error</div>
+                  <div style={{ fontSize: 13, color: C.text, marginBottom: 8 }}>{selectedReportedIssue.lastError.message}</div>
+                  {selectedReportedIssue.lastError.stack && (
+                    <pre style={{ fontSize: 11, color: C.textMuted, whiteSpace: "pre-wrap", margin: 0 }}>{selectedReportedIssue.lastError.stack}</pre>
+                  )}
+                </div>
+              )}
+              {selectedReportedIssue.context && (
+                <div style={{ marginTop: 10 }}>
+                  <div style={{ fontSize: 11, color: C.textDim, textTransform: "uppercase", marginBottom: 6 }}>Context</div>
+                  <pre style={{ fontSize: 11, color: C.textMuted, whiteSpace: "pre-wrap", margin: 0 }}>
+                    {JSON.stringify(selectedReportedIssue.context, null, 2)}
+                  </pre>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
       {tab === "user" && selectedUser && (
         <div className="fade-in">
           {loadingUser ? <div className="loading-bar" style={{ maxWidth: 200, margin: "40px auto" }} /> : (
@@ -1126,6 +1255,18 @@ function AdminPage({ user }) {
                   ].map(([l, v], i) => (
                     <div key={i}><span style={{ fontSize: 11, color: C.textDim, textTransform: "uppercase" }}>{l}</span><p style={{ fontSize: 14, color: C.textMuted }}>{v || "—"}</p></div>
                   ))}
+                </div>
+                <div style={{ marginTop: 16, display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                  <input
+                    className="input"
+                    placeholder="Set home course..."
+                    value={homeCourseDraft}
+                    onChange={(e) => setHomeCourseDraft(e.target.value)}
+                    style={{ maxWidth: 360 }}
+                  />
+                  <button className="btn btn-secondary btn-sm" onClick={handleSaveHomeCourse} disabled={savingHomeCourse}>
+                    {savingHomeCourse ? "Saving..." : "Save Home Course"}
+                  </button>
                 </div>
                 {selectedUser.statPreferences && (
                   <div style={{ marginTop: 16 }}>
