@@ -949,6 +949,7 @@ function AdminPage({ user }) {
   const [reportedIssues, setReportedIssues] = useState([]);
   const [selectedReportedIssue, setSelectedReportedIssue] = useState(null);
   const [reportNoteDraft, setReportNoteDraft] = useState("");
+  const [adminReplyDraft, setAdminReplyDraft] = useState("");
   const [updatingReport, setUpdatingReport] = useState(false);
   const [refreshingReports, setRefreshingReports] = useState(false);
   const [homeCourseDraft, setHomeCourseDraft] = useState("");
@@ -1001,6 +1002,7 @@ function AdminPage({ user }) {
     const nextIssue = {
       ...issue,
       ...updates,
+      updatedAt: updates.updatedAt || now,
       status: updates.status || issue.status || "open",
     };
     try {
@@ -1014,11 +1016,12 @@ function AdminPage({ user }) {
         ["lastReportedIssue", "lastReportedIssueAt"]
       );
       if (issue.id) {
+        const patchUpdates = { ...updates, updatedAt: updates.updatedAt || now };
         await firestorePatchWithFieldPaths(
           `reportedIssues/${issue.id}`,
           user.idToken,
-          updates,
-          Object.keys(updates || {})
+          patchUpdates,
+          Object.keys(patchUpdates || {})
         );
       }
       setUsers((prev) => prev.map((u) => u.uid === issue.uid ? {
@@ -1031,6 +1034,26 @@ function AdminPage({ user }) {
     } finally {
       setUpdatingReport(false);
     }
+  };
+
+  const sendAdminReply = async () => {
+    if (!selectedReportedIssue?.uid) return;
+    if (!adminReplyDraft.trim()) return;
+    const now = new Date().toISOString();
+    const existingThread = Array.isArray(selectedReportedIssue.thread) ? selectedReportedIssue.thread : [];
+    const seededThread = existingThread.length
+      ? existingThread
+      : (selectedReportedIssue.message ? [{ from: "user", message: selectedReportedIssue.message, createdAt: selectedReportedIssue.createdAt || now }] : []);
+    const nextThread = [
+      ...seededThread,
+      { from: "admin", message: adminReplyDraft.trim(), createdAt: now },
+    ];
+    await updateReportedIssue(selectedReportedIssue, {
+      adminNote: adminReplyDraft.trim(),
+      thread: nextThread,
+      updatedAt: now,
+    });
+    setAdminReplyDraft("");
   };
 
   const handleSaveHomeCourse = async () => {
@@ -1250,7 +1273,7 @@ function AdminPage({ user }) {
                         <td style={{ maxWidth: 260, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{issue.message || "—"}</td>
                         <td>{lastLogin ? fmtDate(lastLogin) : "—"}</td>
                         <td style={{ maxWidth: 260, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{recentError}</td>
-                        <td><button className="btn btn-ghost btn-sm" onClick={() => { setSelectedReportedIssue(issue); setReportNoteDraft(issue.adminNote || ""); }}>View</button></td>
+                        <td><button className="btn btn-ghost btn-sm" onClick={() => { setSelectedReportedIssue(issue); setReportNoteDraft(issue.adminNote || ""); setAdminReplyDraft(""); }}>View</button></td>
                       </tr>
                     );
                   })}
@@ -1280,6 +1303,35 @@ function AdminPage({ user }) {
                 {selectedReportedIssue.uid || "—"}
               </div>
               <div style={{ fontSize: 14, color: C.text, marginBottom: 12 }}>{selectedReportedIssue.message || "—"}</div>
+              {(() => {
+                const thread = Array.isArray(selectedReportedIssue.thread) ? selectedReportedIssue.thread : [];
+                if (!thread.length) return null;
+                return (
+                  <div style={{ marginBottom: 12 }}>
+                    <div style={{ fontSize: 11, color: C.textDim, textTransform: "uppercase", marginBottom: 6 }}>Thread</div>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                      {thread.map((entry, idx) => (
+                        <div key={idx} style={{
+                          background: entry.from === "admin" ? "rgba(59,130,246,0.12)" : "rgba(16,185,129,0.12)",
+                          border: `1px solid ${entry.from === "admin" ? "rgba(59,130,246,0.35)" : "rgba(16,185,129,0.35)"}`,
+                          borderRadius: 10,
+                          padding: "8px 10px",
+                        }}>
+                          <div style={{ fontSize: 11, color: C.textDim, textTransform: "uppercase", marginBottom: 4 }}>
+                            {entry.from === "admin" ? "Admin" : "User"}
+                          </div>
+                          <div style={{ fontSize: 13, color: C.text }}>{entry.message}</div>
+                          {entry.createdAt && (
+                            <div style={{ fontSize: 11, color: C.textDim, marginTop: 6 }}>
+                              {fmtDate(entry.createdAt)}
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })()}
               <div style={{ marginBottom: 12 }}>
                 <div style={{ fontSize: 11, color: C.textDim, textTransform: "uppercase", marginBottom: 6 }}>Admin Note</div>
                 <textarea
@@ -1334,6 +1386,34 @@ function AdminPage({ user }) {
                       {updatingReport ? "Updating..." : "Reopen"}
                     </button>
                   )}
+                </div>
+              </div>
+              <div style={{ marginBottom: 12 }}>
+                <div style={{ fontSize: 11, color: C.textDim, textTransform: "uppercase", marginBottom: 6 }}>Reply to User</div>
+                <textarea
+                  value={adminReplyDraft}
+                  onChange={(e) => setAdminReplyDraft(e.target.value)}
+                  placeholder="Send a reply..."
+                  style={{
+                    width: "100%",
+                    minHeight: 80,
+                    background: C.bgElevated,
+                    border: `1px solid ${C.border}`,
+                    borderRadius: 10,
+                    color: C.text,
+                    padding: "10px 12px",
+                    fontFamily: "inherit",
+                    fontSize: 13,
+                  }}
+                />
+                <div style={{ display: "flex", gap: 8, marginTop: 8, flexWrap: "wrap" }}>
+                  <button
+                    className="btn btn-primary btn-sm"
+                    disabled={updatingReport || !adminReplyDraft.trim()}
+                    onClick={sendAdminReply}
+                  >
+                    {updatingReport ? "Sending..." : "Send Reply"}
+                  </button>
                 </div>
               </div>
               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 10, marginBottom: 12 }}>
