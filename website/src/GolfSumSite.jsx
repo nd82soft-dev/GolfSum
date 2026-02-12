@@ -950,33 +950,42 @@ function AdminPage({ user }) {
   const [selectedReportedIssue, setSelectedReportedIssue] = useState(null);
   const [reportNoteDraft, setReportNoteDraft] = useState("");
   const [updatingReport, setUpdatingReport] = useState(false);
+  const [refreshingReports, setRefreshingReports] = useState(false);
   const [homeCourseDraft, setHomeCourseDraft] = useState("");
   const [savingHomeCourse, setSavingHomeCourse] = useState(false);
 
   useEffect(() => {
-    (async () => {
-      setLoading(true);
-      try {
-        const u = await listAllUsers(user.idToken);
-        setUsers(u);
-        const rm = {};
-        await Promise.all(u.map(async (usr) => { try { rm[usr.uid] = await getUserRounds(usr.uid, user.idToken); } catch { rm[usr.uid] = []; } }));
-        setAllRounds(rm);
-        const ocrBase = {
-          from: [{ collectionId: "courses" }],
-          where: { fieldFilter: { field: { fieldPath: "source" }, op: "EQUAL", value: { stringValue: "USER_OCR" } } },
-        };
-        const [totalOcr, lastOcrArr] = await Promise.all([
-          firestoreAggregateCount(ocrBase, user.idToken, "ocrCount"),
-          firestoreQuery({ ...ocrBase, orderBy: [{ field: { fieldPath: "lastVerifiedAt" }, direction: "DESCENDING" }], limit: 1 }, user.idToken),
-        ]);
-        setOcrStats({ total: totalOcr, last: lastOcrArr?.[0] || null });
-        const issues = await firestoreList("reportedIssues", user.idToken, 200);
-        setReportedIssues(issues);
-      } catch (e) { console.error(e); }
-      setLoading(false);
-    })();
+    reloadAdminData(true);
   }, [user]);
+
+  const reloadAdminData = async (showLoader = false) => {
+    if (showLoader) setLoading(true);
+    try {
+      const u = await listAllUsers(user.idToken);
+      setUsers(u);
+      const rm = {};
+      await Promise.all(u.map(async (usr) => { try { rm[usr.uid] = await getUserRounds(usr.uid, user.idToken); } catch { rm[usr.uid] = []; } }));
+      setAllRounds(rm);
+      const ocrBase = {
+        from: [{ collectionId: "courses" }],
+        where: { fieldFilter: { field: { fieldPath: "source" }, op: "EQUAL", value: { stringValue: "USER_OCR" } } },
+      };
+      const [totalOcr, lastOcrArr] = await Promise.all([
+        firestoreAggregateCount(ocrBase, user.idToken, "ocrCount"),
+        firestoreQuery({ ...ocrBase, orderBy: [{ field: { fieldPath: "lastVerifiedAt" }, direction: "DESCENDING" }], limit: 1 }, user.idToken),
+      ]);
+      setOcrStats({ total: totalOcr, last: lastOcrArr?.[0] || null });
+      const issues = await firestoreList("reportedIssues", user.idToken, 200);
+      setReportedIssues(issues);
+    } catch (e) { console.error(e); }
+    if (showLoader) setLoading(false);
+  };
+
+  const refreshReports = async () => {
+    setRefreshingReports(true);
+    await reloadAdminData(false);
+    setRefreshingReports(false);
+  };
 
   const loadUserDetail = async (usr) => {
     setSelectedUser(usr); setLoadingUser(true); setTab("user");
@@ -1216,6 +1225,11 @@ function AdminPage({ user }) {
 
       {tab === "reported" && (
         <div className="fade-in">
+          <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 10 }}>
+            <button className="btn btn-ghost btn-sm" onClick={refreshReports} disabled={refreshingReports}>
+              {refreshingReports ? "Refreshing..." : "Refresh Reports"}
+            </button>
+          </div>
           <div className="card" style={{ padding: 0, overflow: "auto" }}>
             {mergedReportedIssues.length === 0 ? (
               <div style={{ padding: 20, fontSize: 13, color: C.textMuted }}>No reported issues yet.</div>
