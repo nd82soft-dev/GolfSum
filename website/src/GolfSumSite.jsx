@@ -1017,6 +1017,30 @@ function AdminPage({ user }) {
   const ocrLastName = ocrStats.last?.name || "—";
   const errorUsers = users.filter((u) => u.lastError?.message || u.lastError?.stack);
   const userLookup = users.reduce((acc, u) => { acc[u.uid] = u; return acc; }, {});
+  const userReportedIssues = users
+    .filter((u) => u.lastReportedIssue?.message || u.lastReportedIssueAt)
+    .map((u) => {
+      const issue = u.lastReportedIssue || {};
+      return {
+        ...issue,
+        uid: issue.uid || u.uid,
+        email: issue.email || getUserEmail(u),
+        createdAt: u.lastReportedIssueAt || issue.createdAt,
+        lastLoginAt: issue.lastLoginAt || getUserLastLoginAt(u) || null,
+        lastError: issue.lastError || u.lastError || null,
+        __source: "user",
+      };
+    });
+  const mergedReportedIssues = (() => {
+    const byKey = new Map();
+    const pushIssue = (issue, source) => {
+      const key = `${issue?.uid || "unknown"}|${issue?.createdAt || ""}|${issue?.message || ""}`;
+      if (!byKey.has(key)) byKey.set(key, { ...issue, __source: source });
+    };
+    (reportedIssues || []).forEach((issue) => pushIssue(issue, "collection"));
+    (userReportedIssues || []).forEach((issue) => pushIssue(issue, "user"));
+    return Array.from(byKey.values());
+  })();
 
   const filtered = searchTerm ? users.filter((u) => {
     const t = searchTerm.toLowerCase();
@@ -1060,7 +1084,7 @@ function AdminPage({ user }) {
             <div className="stat-box"><div className="stat-value">{users.length ? Math.round((activeUsers / users.length) * 100) : 0}%</div><div className="stat-label">Activation Rate</div></div>
             <div className="stat-box"><div className="stat-value">{ocrStats.total != null ? ocrStats.total : "—"}</div><div className="stat-label">OCR Uploads</div></div>
             <div className="stat-box"><div className="stat-value" style={{ fontSize: 13 }}>{ocrLastAt ? fmtDate(ocrLastAt) : "—"}</div><div className="stat-label">Last OCR: {ocrLastName}</div></div>
-            <div className="stat-box"><div className="stat-value">{reportedIssues.length}</div><div className="stat-label">Reported Issues</div></div>
+            <div className="stat-box"><div className="stat-value">{mergedReportedIssues.length}</div><div className="stat-label">Reported Issues</div></div>
           </div>
           <div className="card" style={{ padding: 0, overflow: "hidden", marginBottom: 20 }}>
             <div style={{ padding: "16px 20px", borderBottom: `1px solid ${C.border}` }}><h3 style={{ fontSize: 15, fontWeight: 600 }}>Recent Errors</h3></div>
@@ -1151,11 +1175,11 @@ function AdminPage({ user }) {
       {tab === "reported" && (
         <div className="fade-in">
           <div className="card" style={{ padding: 0, overflow: "auto" }}>
-            {reportedIssues.length === 0 ? (
+            {mergedReportedIssues.length === 0 ? (
               <div style={{ padding: 20, fontSize: 13, color: C.textMuted }}>No reported issues yet.</div>
             ) : (
               <table className="table"><thead><tr><th>Date</th><th>User</th><th>Email</th><th>Message</th><th>Last Login</th><th>Recent Error</th><th></th></tr></thead><tbody>
-                {reportedIssues
+                {mergedReportedIssues
                   .slice()
                   .sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0))
                   .map((issue, i) => {
