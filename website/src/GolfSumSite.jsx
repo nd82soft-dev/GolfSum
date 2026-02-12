@@ -680,7 +680,7 @@ function PrivacyPage() {
         { t: "1. Information We Collect", b: "We collect the information you provide when creating an account (email address) and the golf data you enter or import (scores, stats, course details). We also collect basic device and usage analytics to improve the app. We do not sell your personal data to third parties." },
         { t: "2. How We Use Your Data", b: "Your golf data is used to calculate your handicap index, generate coaching insights, and display your statistics. Account data is used for authentication and cloud sync. Anonymous, aggregated data may be used to improve our OCR accuracy and course catalog." },
         { t: "3. Data Storage & Security", b: "Your data is stored in Google Firebase (Firestore) with encryption at rest and in transit. Authentication is handled via Firebase Auth. We implement role-based access controls so users can only access their own data. Course catalog data contributed via OCR is shared across all users to improve the community database." },
-        { t: "4. Third-Party Services", b: "We use Firebase (Google Cloud) for authentication, data storage, and hosting. We use RevenueCat for subscription management. We use Azure Document Intelligence for OCR processing. These services have their own privacy policies. We do not share your personal data with advertisers." },
+        { t: "4. Third-Party Services", b: "We use Firebase (Google Cloud) for authentication, data storage, and hosting. We use Azure Document Intelligence for OCR processing. These services have their own privacy policies. We do not share your personal data with advertisers." },
         { t: "5. Your Rights", b: "You can export all your data at any time via the Data Export feature in the app. You can delete your account and all associated data by contacting support. We will respond to data deletion requests within 30 days." },
         { t: "6. Cookies & Tracking", b: "Our website uses essential cookies for authentication sessions. We do not use third-party advertising cookies or tracking pixels." },
         { t: "7. Children's Privacy", b: "GolfSum is not directed to children under 13. We do not knowingly collect data from children under 13. If you believe a child has provided us personal data, contact us and we will delete it." },
@@ -935,6 +935,7 @@ function AdminPage({ user }) {
   const [loadingUser, setLoadingUser] = useState(false);
   const [tab, setTab] = useState("overview");
   const [ocrStats, setOcrStats] = useState({ total: null, last: null });
+  const [selectedErrorUser, setSelectedErrorUser] = useState(null);
 
   useEffect(() => {
     (async () => {
@@ -971,6 +972,7 @@ function AdminPage({ user }) {
   const recentLogins = users.filter((u) => daysSince(getUserLastLoginAt(u)) <= 7).length;
   const ocrLastAt = ocrStats.last?.lastVerifiedAt ? new Date(ocrStats.last.lastVerifiedAt).toISOString() : (ocrStats.last?.updatedAt || null);
   const ocrLastName = ocrStats.last?.name || "—";
+  const errorUsers = users.filter((u) => u.lastError?.message || u.lastError?.stack);
 
   const filtered = searchTerm ? users.filter((u) => {
     const t = searchTerm.toLowerCase();
@@ -1011,6 +1013,44 @@ function AdminPage({ user }) {
             <div className="stat-box"><div className="stat-value">{ocrStats.total != null ? ocrStats.total : "—"}</div><div className="stat-label">OCR Uploads</div></div>
             <div className="stat-box"><div className="stat-value" style={{ fontSize: 13 }}>{ocrLastAt ? fmtDate(ocrLastAt) : "—"}</div><div className="stat-label">Last OCR: {ocrLastName}</div></div>
           </div>
+          <div className="card" style={{ padding: 0, overflow: "hidden", marginBottom: 20 }}>
+            <div style={{ padding: "16px 20px", borderBottom: `1px solid ${C.border}` }}><h3 style={{ fontSize: 15, fontWeight: 600 }}>Recent Errors</h3></div>
+            {errorUsers.length === 0 ? (
+              <div style={{ padding: 20, fontSize: 13, color: C.textMuted }}>No errors recorded.</div>
+            ) : (
+              <table className="table"><thead><tr><th>User</th><th>Email</th><th>When</th><th>Message</th><th>Stack</th><th></th></tr></thead><tbody>
+                {errorUsers.sort((a, b) => new Date(b.lastError?.createdAt || 0) - new Date(a.lastError?.createdAt || 0)).slice(0, 20).map((u, i) => (
+                  <tr key={i}>
+                    <td style={{ color: C.text, fontWeight: 500 }}>{getUserName(u)}</td>
+                    <td style={{ fontSize: 13, color: C.textMuted }}>{getUserEmail(u)}</td>
+                    <td style={{ fontSize: 12 }}>{u.lastError?.createdAt ? fmtDate(u.lastError.createdAt) : "—"}</td>
+                    <td style={{ maxWidth: 220, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{u.lastError?.message || "—"}</td>
+                    <td style={{ maxWidth: 220, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontFamily: "monospace", fontSize: 11 }}>{u.lastError?.stack || "—"}</td>
+                    <td><button className="btn btn-ghost btn-sm" onClick={() => setSelectedErrorUser(u)}>View</button></td>
+                  </tr>
+                ))}
+              </tbody></table>
+            )}
+          </div>
+          {selectedErrorUser?.lastError && (
+            <div className="card" style={{ marginBottom: 20 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, marginBottom: 10 }}>
+                <h3 style={{ fontSize: 15, fontWeight: 600 }}>Full Error</h3>
+                <button className="btn btn-ghost btn-sm" onClick={() => setSelectedErrorUser(null)}>Close</button>
+              </div>
+              <div style={{ fontSize: 13, color: C.textMuted, marginBottom: 8 }}>
+                <span style={{ color: C.text, fontWeight: 600 }}>{getUserName(selectedErrorUser)}</span> · {getUserEmail(selectedErrorUser)}
+              </div>
+              <div style={{ fontSize: 12, color: C.textDim, marginBottom: 12 }}>{selectedErrorUser.lastError.createdAt || "—"}</div>
+              <div style={{ fontSize: 13, color: C.text, marginBottom: 10 }}>{selectedErrorUser.lastError.message}</div>
+              {selectedErrorUser.lastError.stack && (
+                <pre style={{ fontSize: 11, color: C.textMuted, whiteSpace: "pre-wrap", margin: 0 }}>{selectedErrorUser.lastError.stack}</pre>
+              )}
+              {selectedErrorUser.lastError.args && (
+                <pre style={{ fontSize: 11, color: C.textDim, whiteSpace: "pre-wrap", marginTop: 10 }}>{selectedErrorUser.lastError.args}</pre>
+              )}
+            </div>
+          )}
           <div className="card" style={{ padding: 0, overflow: "hidden" }}>
             <div style={{ padding: "16px 20px", borderBottom: `1px solid ${C.border}` }}><h3 style={{ fontSize: 15, fontWeight: 600 }}>Most Active Users</h3></div>
             <table className="table"><thead><tr><th>User</th><th>Email</th><th>UID</th><th>Rounds</th><th>Best</th><th>Last Round</th><th>Last Login</th><th>Device</th><th></th></tr></thead><tbody>
@@ -1121,9 +1161,25 @@ function AdminPage({ user }) {
               )}
               <div className="card" style={{ padding: 0, overflow: "auto" }}>
                 <div style={{ padding: "16px 20px", borderBottom: `1px solid ${C.border}` }}><h3 style={{ fontSize: 15, fontWeight: 600 }}>Round History</h3></div>
-                <table className="table"><thead><tr><th>Date</th><th>Course</th><th>Score</th><th>Putts</th><th>FIR</th><th>GIR</th><th>Tee</th><th>Rating/Slope</th><th>Diff</th><th>Holes</th><th>Status</th></tr></thead><tbody>
+                <table className="table"><thead><tr><th>Date</th><th>Course</th><th>Score</th><th>Putts</th><th>FIR</th><th>GIR</th><th>Tee</th><th>Rating/Slope</th><th>Diff</th><th>Holes</th><th>Scorecard</th><th>Status</th></tr></thead><tbody>
                   {selectedRounds.map((r, i) => (
                     <tr key={i}><td>{fmtDate(r.date)}</td><td style={{ color: C.text, fontWeight: 500, maxWidth: 160, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.courseName || "—"}</td><td style={{ fontWeight: 700, color: C.text }}>{r.score}</td><td>{r.stats?.putts || "—"}</td><td>{pct(r.stats?.fairways, r.stats?.fairwaysPossible)}</td><td>{pct(r.stats?.greens, r.stats?.greensPossible)}</td><td>{r.stats?.teeBox || "—"}</td><td>{r.stats?.courseRating || "—"}/{r.stats?.slopeRating || "—"}</td><td>{r.differential != null ? fmt(r.differential, 1) : "—"}</td><td>{r.holeCount || "18"}</td><td>
+                      {r.thumbnailUri || r.imageUri ? (
+                        <a
+                          href={r.imageUri || r.thumbnailUri}
+                          target="_blank"
+                          rel="noreferrer"
+                          style={{ display: "inline-flex", alignItems: "center", gap: 6 }}
+                        >
+                          <img
+                            src={r.thumbnailUri || r.imageUri}
+                            alt="Scorecard"
+                            style={{ width: 44, height: 32, objectFit: "cover", borderRadius: 6, border: `1px solid ${C.border}` }}
+                          />
+                          <span style={{ fontSize: 12, color: C.textMuted }}>View</span>
+                        </a>
+                      ) : "—"}
+                    </td><td>
                       {r.isAcceptableForHandicap === false ? <span className="badge badge-red">Ineligible</span> : r.isIncomplete ? <span className="badge badge-amber">Incomplete</span> : r.isNineHoleRound ? <span className="badge badge-blue">9 holes</span> : <span className="badge badge-green">OK</span>}
                     </td></tr>
                   ))}
