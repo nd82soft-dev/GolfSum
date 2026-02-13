@@ -945,6 +945,8 @@ function AdminPage({ user }) {
   const [loadingUser, setLoadingUser] = useState(false);
   const [tab, setTab] = useState("overview");
   const [ocrStats, setOcrStats] = useState({ total: null, last: null });
+  const [ocrErrors, setOcrErrors] = useState([]);
+  const [selectedOcrError, setSelectedOcrError] = useState(null);
   const [selectedErrorUser, setSelectedErrorUser] = useState(null);
   const [expandedTopError, setExpandedTopError] = useState(null);
   const [reportedIssues, setReportedIssues] = useState([]);
@@ -979,6 +981,8 @@ function AdminPage({ user }) {
       setOcrStats({ total: totalOcr, last: lastOcrArr?.[0] || null });
       const issues = await firestoreList("reportedIssues", user.idToken, 200);
       setReportedIssues(issues);
+      const ocrErrorItems = await firestoreList("ocrErrors", user.idToken, 200);
+      setOcrErrors(ocrErrorItems);
     } catch (e) { console.error(e); }
     if (showLoader) setLoading(false);
   };
@@ -1183,10 +1187,12 @@ function AdminPage({ user }) {
       </div>
 
       <div style={{ display: "flex", gap: 4, marginBottom: 20, borderBottom: `1px solid ${C.border}` }}>
-        {["overview", "users", "reported", ...(selectedUser ? ["user"] : [])].map((t) => (
+        {["overview", "users", "ocr", "reported", ...(selectedUser ? ["user"] : [])].map((t) => (
           <button key={t} onClick={() => setTab(t)} style={{ background: "none", border: "none", padding: "10px 16px", cursor: "pointer", fontFamily: "inherit", fontSize: 14, fontWeight: tab === t ? 600 : 400, color: tab === t ? C.text : C.textMuted, borderBottom: tab === t ? `2px solid ${C.brand}` : "2px solid transparent", textTransform: "capitalize" }}>
             {t === "user" && selectedUser
               ? `User: ${selectedUser.personalInfo?.name || selectedUser.uid.slice(0, 8)}`
+              : t === "ocr"
+                ? "OCR Errors"
               : t === "reported"
                 ? "Reported Issues"
                 : t}
@@ -1205,6 +1211,7 @@ function AdminPage({ user }) {
             <div className="stat-box"><div className="stat-value">{users.length ? (totalRounds / users.length).toFixed(1) : "0"}</div><div className="stat-label">Avg Rounds/User</div></div>
             <div className="stat-box"><div className="stat-value">{users.length ? Math.round((activeUsers / users.length) * 100) : 0}%</div><div className="stat-label">Activation Rate</div></div>
             <div className="stat-box"><div className="stat-value">{ocrStats.total != null ? ocrStats.total : "—"}</div><div className="stat-label">OCR Uploads</div></div>
+            <div className="stat-box"><div className="stat-value">{ocrErrors.length}</div><div className="stat-label">OCR Errors</div></div>
             <div className="stat-box"><div className="stat-value" style={{ fontSize: 13 }}>{ocrLastAt ? fmtDate(ocrLastAt) : "—"}</div><div className="stat-label">Last OCR: {ocrLastName}</div></div>
             <div className="stat-box"><div className="stat-value">{mergedReportedIssues.length}</div><div className="stat-label">Reported Issues</div></div>
           </div>
@@ -1336,6 +1343,94 @@ function AdminPage({ user }) {
               })}
             </tbody></table>
           </div>
+        </div>
+      )}
+
+      {tab === "ocr" && (
+        <div className="fade-in">
+          <div className="card" style={{ padding: 0, overflow: "auto", marginBottom: 20 }}>
+            <div style={{ padding: "16px 20px", borderBottom: `1px solid ${C.border}` }}>
+              <h3 style={{ fontSize: 15, fontWeight: 600 }}>OCR Errors</h3>
+              <p style={{ fontSize: 12, color: C.textMuted, marginTop: 2 }}>Latest OCR failures with attached images (if available)</p>
+            </div>
+            {ocrErrors.length === 0 ? (
+              <div style={{ padding: 20, fontSize: 13, color: C.textMuted }}>No OCR errors recorded.</div>
+            ) : (
+              <table className="table"><thead><tr><th>Date</th><th>User</th><th>Email</th><th>Reason</th><th>Message</th><th>Mode</th><th>Photo</th><th></th></tr></thead><tbody>
+                {ocrErrors
+                  .slice()
+                  .sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0))
+                  .map((err, i) => {
+                    const u = userLookup[err.uid] || {};
+                    const msg = err.error?.message || err.message || "—";
+                    return (
+                      <tr key={i}>
+                        <td>{err.createdAt ? fmtDate(err.createdAt) : "—"}</td>
+                        <td style={{ color: C.text, fontWeight: 500 }}>{getUserName(u) || err.uid?.slice?.(0, 8) || "—"}</td>
+                        <td style={{ fontSize: 13, color: C.textMuted }}>{err.email || getUserEmail(u) || "—"}</td>
+                        <td style={{ fontSize: 12, color: C.textMuted }}>{err.reason || "—"}</td>
+                        <td style={{ maxWidth: 240, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{msg}</td>
+                        <td style={{ fontSize: 12 }}>{err.mode || "—"}</td>
+                        <td>
+                          {err.imageUrl ? (
+                            <img src={err.imageUrl} alt="OCR" style={{ width: 52, height: 36, objectFit: "cover", borderRadius: 6, border: `1px solid ${C.border}` }} />
+                          ) : "—"}
+                        </td>
+                        <td><button className="btn btn-ghost btn-sm" onClick={() => setSelectedOcrError(err)}>View</button></td>
+                      </tr>
+                    );
+                  })}
+              </tbody></table>
+            )}
+          </div>
+          {selectedOcrError && (
+            <div className="card">
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, marginBottom: 10 }}>
+                <h3 style={{ fontSize: 15, fontWeight: 600 }}>OCR Error Detail</h3>
+                <button className="btn btn-ghost btn-sm" onClick={() => setSelectedOcrError(null)}>Close</button>
+              </div>
+              <div style={{ fontSize: 12, color: C.textDim, marginBottom: 10 }}>
+                {selectedOcrError.createdAt ? fmtDate(selectedOcrError.createdAt) : "—"}
+              </div>
+              <div style={{ fontSize: 13, color: C.textMuted, marginBottom: 10 }}>
+                <span style={{ color: C.text, fontWeight: 600 }}>{selectedOcrError.email || "Unknown user"}</span>
+                {" · "}
+                {selectedOcrError.uid || "—"}
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 10, marginBottom: 12 }}>
+                {[
+                  ["Reason", selectedOcrError.reason],
+                  ["Mode", selectedOcrError.mode],
+                  ["Platform", selectedOcrError.platform],
+                  ["App Version", selectedOcrError.appVersion],
+                  ["Build", selectedOcrError.buildNumber],
+                ].map(([label, value], idx) => (
+                  <div key={idx}>
+                    <div style={{ fontSize: 11, color: C.textDim, textTransform: "uppercase" }}>{label}</div>
+                    <div style={{ fontSize: 13, color: C.textMuted }}>{value || "—"}</div>
+                  </div>
+                ))}
+              </div>
+              <div style={{ fontSize: 14, color: C.text, marginBottom: 10 }}>{selectedOcrError.error?.message || "—"}</div>
+              {selectedOcrError.error?.stack && (
+                <pre style={{ fontSize: 11, color: C.textMuted, whiteSpace: "pre-wrap", overflowWrap: "anywhere", wordBreak: "break-word", margin: "0 0 12px" }}>{selectedOcrError.error.stack}</pre>
+              )}
+              {selectedOcrError.imageUrl && (
+                <div style={{ marginTop: 6 }}>
+                  <div style={{ fontSize: 11, color: C.textDim, textTransform: "uppercase", marginBottom: 6 }}>Image</div>
+                  <img src={selectedOcrError.imageUrl} alt="OCR" style={{ width: "100%", maxWidth: 520, borderRadius: 12, border: `1px solid ${C.border}` }} />
+                </div>
+              )}
+              {selectedOcrError.flags?.length ? (
+                <div style={{ marginTop: 12 }}>
+                  <div style={{ fontSize: 11, color: C.textDim, textTransform: "uppercase", marginBottom: 6 }}>Flags</div>
+                  <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                    {selectedOcrError.flags.map((f, i) => <span key={i} className="badge badge-amber" style={{ fontSize: 11 }}>{f}</span>)}
+                  </div>
+                </div>
+              ) : null}
+            </div>
+          )}
         </div>
       )}
 
